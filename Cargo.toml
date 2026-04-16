@@ -1,0 +1,19 @@
+[package]
+name = "windows-rl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+eframe = { version = "0.27",  features = ["glow", "x11", "wayland"] }
+
+# إدارة العمليات ومراقبة موارد النظام (CPU/RAM)
+sysinfo = "0.30"
+# التعامل مع التوقيت والعمليات غير المتزامنة
+tokio = { version = "1", features = ["full"] }
+# تحسين التعامل مع الأوامر وتجريد مسارات النظام
+directories = "5.0"
+#rfd = "0.14"
+
+
+###№#######
