@@ -1,5 +1,8 @@
+pub mod scrubber;
 use std::process::{Command, Child};
 use crate::core::SystemContext;
+use self::scrubber::EnvScrubber;
+
 
 pub struct AppInstance {
     pub child: Child,
@@ -7,6 +10,7 @@ pub struct AppInstance {
 
 impl AppInstance {
     pub fn launch(ctx: &SystemContext, exe: &str, prefix: &str) -> Self {
+        let scrubber = EnvScrubber::new();
         let mut cmd = if ctx.is_android {
             let mut c = Command::new("/usr/bin/box64");
             c.arg(&ctx.wine_bin);
@@ -19,14 +23,16 @@ impl AppInstance {
         } else {
             Command::new("wine64")
         };
-
+  
         // وضع الجرافيك المستقر لمنع انهيار النوافذ
         if ctx.is_android {
             cmd.env("LIBGL_ALWAYS_SOFTWARE", "1")
                .env("GALLIUM_DRIVER", "llvmpipe")
                .env("MESA_GL_VERSION_OVERRIDE", "4.5");
         }
-
+      
+        scrubber.apply(&mut cmd);
+        
         cmd.arg(exe)
            .env("WINEPREFIX", prefix)
            .env("DISPLAY", ":1")

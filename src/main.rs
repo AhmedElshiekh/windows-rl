@@ -6,25 +6,22 @@ use crate::core::{SystemContext, setup_dependencies};
 use crate::engine::AppInstance;
 use std::process::Command;
 use std::fs;
+use std::path::PathBuf;
 
 fn main() -> eframe::Result<()> {
-    // --- الحماية القسرية: منع انهيار Winit بسبب Wayland ---
+    // --- إعداد بيئة العرض (X11) بشكل آمن ---
     unsafe {
-        // حذف متغير وايلاند تماماً لإجبار المكتبة على استخدام X11 المستقر
         std::env::remove_var("WAYLAND_DISPLAY");
-        
-        // إعداد شاشة العرض رقم 1 (المتوافقة مع termux-x11 :1)
         std::env::set_var("DISPLAY", ":1");
-        
-        // حلول تقنية لمنع انهيار الرسوميات في بيئات الحاويات (PRoot)
         std::env::set_var("QT_X11_NO_MITSHM", "1");
         std::env::set_var("_JAVA_AWT_WM_NONREPARENTING", "1");
+        std::env::set_var("WINIT_UNIX_BACKEND", "x11");
     }
 
-    // تهيئة النظام (تثبيت الحزم مثل openbox و procps)
+    // تهيئة النظام الأساسي
     setup_dependencies();
 
-    // تشغيل Openbox مع خاصية --replace لإنهاء أي نسخة قديمة معلقة
+    // تشغيل مدير النوافذ لضمان عمل واجهات Wine
     let _ = Command::new("openbox")
         .arg("--replace")
         .env("DISPLAY", ":1")
@@ -32,11 +29,10 @@ fn main() -> eframe::Result<()> {
 
     let ctx = SystemContext::new();
     
-    // إعدادات واجهة المستخدم
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1100.0, 750.0])
-            .with_title("Windows-RL Stable X11 Edition"),
+            .with_title("Windows-RL Pro: Modern Edition"),
         ..Default::default()
     };
 
@@ -51,6 +47,8 @@ struct WindowsRLApp {
     ctx: SystemContext,
     active_apps: Vec<(String, AppInstance)>,
     logs: String,
+    // المسار الحالي للمستعرض الذكي
+    current_path: PathBuf,
 }
 
 impl WindowsRLApp {
@@ -59,15 +57,18 @@ impl WindowsRLApp {
             ctx,
             active_apps: Vec::new(),
             logs: "System Ready (X11 Mode)".into(),
+            // تحديد مسار البداية الافتراضي لـ Wine
+            current_path: PathBuf::from("/root/.windows-rl/default/drive_c/"),
         }
     }
 }
 
 impl eframe::App for WindowsRLApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // تنظيف العمليات المنتهية
+        // تنظيف العمليات المنتهية تلقائياً
         self.active_apps.retain_mut(|(_, app)| app.is_running());
 
+        // --- القائمة الجانبية (Navigation SidePanel) ---
         egui::SidePanel::left("main_nav").show(ctx, |ui| {
             ui.add_space(15.0);
             ui.vertical_centered(|ui| {
@@ -79,12 +80,12 @@ impl eframe::App for WindowsRLApp {
             ui.separator();
 
             ui.vertical_centered_justified(|ui| {
-                if ui.button("📁 Explorer").clicked() {
-                    let app = AppInstance::launch(&self.ctx, "explorer.exe", "/root/.windows-rl/default");
-                    self.active_apps.push(("Explorer".into(), app));
+                if ui.button("📁 Explorer Home").clicked() {
+                    self.current_path = PathBuf::from("/root/.windows-rl/default/drive_c/");
+                    self.logs = "Back to Drive C".into();
                 }
 
-                if ui.button("⚙️ Control Panel").clicked() {
+                if ui.button("⚙️ Wine Config").clicked() {
                     let app = AppInstance::launch(&self.ctx, "winecfg", "/root/.windows-rl/default");
                     self.active_apps.push(("WineCfg".into(), app));
                 }
@@ -110,35 +111,65 @@ impl eframe::App for WindowsRLApp {
             });
         });
 
+        // --- اللوحة المركزية (Modern File Explorer) ---
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("📂 Software on Drive C:");
-            ui.label(format!("Log: {}", self.logs));
+            ui.horizontal(|ui| {
+                ui.heading("📂 Modern Explorer");
+                ui.add_space(20.0);
+                ui.label(egui::RichText::new(&self.logs).color(egui::Color32::GOLD));
+            });
+
+            // شريط مسار المجلد الحالي (Breadcrumbs)
+            ui.horizontal(|ui| {
+                if ui.button("⬅ Back").clicked() {
+                    if let Some(parent) = self.current_path.parent() {
+                        self.current_path = parent.to_path_buf();
+                    }
+                }
+                ui.separator();
+                ui.label(egui::RichText::new(format!("📍 {}", self.current_path.display()))
+                    .monospace()
+                    .color(egui::Color32::LIGHT_BLUE));
+            });
+            
             ui.separator();
 
-            let path = "/root/.windows-rl/default/drive_c/";
+            // عرض محتويات المجلد بشكل ديناميكي
             egui::ScrollArea::vertical().show(ui, |ui| {
-                if let Ok(entries) = fs::read_dir(path) {
+                if let Ok(entries) = fs::read_dir(&self.current_path) {
                     for entry in entries.flatten() {
                         let fpath = entry.path();
-                        if fpath.extension().and_then(|s| s.to_str()) == Some("exe") {
-                            let fname = fpath.file_name().unwrap().to_string_lossy();
-                            ui.horizontal(|ui| {
-                                ui.label("📀");
-                                if ui.button(format!("Run {}", fname)).clicked() {
-                                    let app = AppInstance::launch(&self.ctx, &fpath.to_string_lossy(), "/root/.windows-rl/default");
-                                    let name_str = fname.to_string(); // حل مشكلة Ownership
-                                    self.active_apps.push((name_str, app));
-                                    self.logs = format!("Launched {}", fname);
+                        let fname = fpath.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        
+                        ui.horizontal(|ui| {
+                            if fpath.is_dir() {
+                                ui.label("📁");
+                                if ui.link(&fname).clicked() {
+                                    self.current_path = fpath;
                                 }
-                            });
-                        }
+                            } else {
+                                let is_exe = fpath.extension().and_then(|s| s.to_str()) == Some("exe");
+                                ui.label(if is_exe { "📀" } else { "📄" });
+                                
+                                if is_exe {
+                                    if ui.button(format!("Run {}", fname)).clicked() {
+                                        let app = AppInstance::launch(&self.ctx, &fpath.to_string_lossy(), "/root/.windows-rl/default");
+                                        self.active_apps.push((fname.clone(), app));
+                                        self.logs = format!("Launched {}", fname);
+                                    }
+                                } else {
+                                    ui.label(&fname);
+                                }
+                            }
+                        });
                     }
                 } else {
-                    ui.colored_label(egui::Color32::GOLD, "Drive C not found. Launch Explorer first.");
+                    ui.colored_label(egui::Color32::RED, "🚫 Error: Path not accessible.");
                 }
             });
         });
 
+        // تحديث الواجهة لضمان استجابة العمليات
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
 }

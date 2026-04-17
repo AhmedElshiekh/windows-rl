@@ -11,9 +11,9 @@
 ---
 
 ## 🔵 Stage 1: Core UX & Environment | المرحلة الأولى: الواجهة واستقرار البيئة
-- [ ] **Modern File Explorer:** Intuitive GUI for file management and EXE selection.
+- [x] **Modern File Explorer:** Intuitive GUI for file management and EXE selection.
     - *متصفح ملفات حديث: واجهة رسومية سهلة لإدارة الملفات واختيار تطبيقات EXE.*
-- [ ] **Environment Scrubbing Engine:** Automated clearing of conflicting Android/PRoot variables.
+- [x] **Environment Scrubbing Engine:** Automated clearing of conflicting Android/PRoot variables.
     - *محرك تنظيف البيئة: مسح تلقائي لمتغيرات البيئة المتعارضة لضمان استقرار Wine.*
 - [ ] **Smart Display Bridge:** Automated detection and setup for X11/Wayland sessions (Termux-X11 support).
     - *جسر العرض الذكي: اكتشاف وإعداد تلقائي لجلسات العرض ودعم Termux-X11.*

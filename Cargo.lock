@@ -3710,6 +3710,7 @@ version = "0.1.0"
 dependencies = [
  "directories",
  "eframe",
+ "serde",
  "sysinfo",
  "tokio",
 ]
