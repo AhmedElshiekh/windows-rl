@@ -1,5 +1,5 @@
-# 🛡️ Windows-RL: The Universal Rust-Wine Manager
-### المحرك العالمي لإدارة بيئات ويندوز بلغة رستم
+# 🛡️ Windows-RL: The Rust-Wine Manager
+###  محرك لإدارة بيئات ويندوز بلغة راست
 
 ---
 
